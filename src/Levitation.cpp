@@ -27,24 +27,24 @@
 // const byte ENB = 5;
 // const byte BL = 2;
 
+const byte ENA = 10;
 const byte IN1 = 9; //Enable for Out 1 X_Plus
 const byte IN2 = 8; //Enable for Out 2 X_Minus
 const byte IN3 = 7; //Enable for Out 3 Y_Plus
 const byte IN4 = 6; //Enable for Out 4 Y_Minus
-const byte ENA = 10;
 const byte ENB = 5;
 const byte HALLX = A1;
 const byte HALLY = A0;
 // const byte BL = 2;
 
 double Setpoint_X, Input_X, Output_X,X_plus;
-double p_X = 5.0,i_X = 0,d_X = 0.08;
-// double p_X = 5.0,i_X = 0.0,d_X = 0.01;
+double p_X = 1.0,i_X = 0,d_X = 0.05;
+// double p_X = 1.0,i_X = 0.0,d_X = 0.01;
 
 
 double Setpoint_Y, Input_Y, Output_Y,Y_plus;
-double p_Y = 5.0,i_Y = 0,d_Y = 0.08;
-// double p_Y = 5.0,i_Y = 0.0,d_Y = 0.01;
+double p_Y = 1.0,i_Y = 0,d_Y = 0.05;
+// double p_Y = 1.0,i_Y = 0.0,d_Y = 0.01;
 
 
 int i,on_put=1;
@@ -54,6 +54,8 @@ int werteHallX[anzahlMittelWerte], zaehlerMittelWerteX=0;
 int werteHallY[anzahlMittelWerte], zaehlerMittelWerteY=0;
 int mittelWertX(int neuerWert);
 int mittelWertY(int neuerWert);
+// int h_min = 61;
+// int h_max = 122;
 // unsigned long time;
 
 PID PID_X(&Input_X, &Output_X, &Setpoint_X, p_X,i_X,d_X, DIRECT);
@@ -66,6 +68,8 @@ void turn_X(int a);
 void turn_Y(int a);
 void read_sensor();
 void turn_off();
+int corr_sensor_y(double pwm_y);
+int corr_sensor_x(double pwm_x);
 double pid_ctrl_X(double error);
 double pid_ctrl_Y(double error);
 
@@ -87,27 +91,28 @@ void setup(){
   analogWrite(ENB,0);
 
 
-  Setpoint_X = 550;//560;
+  Setpoint_X = 560;//560;
   PID_X.SetTunings(p_X,i_X,d_X);
   PID_X.SetOutputLimits(-255,255);
-  PID_X.SetSampleTime(1);
+  PID_X.SetSampleTime(10);
   PID_X.SetMode(AUTOMATIC);
 
   Setpoint_Y = 560;//560;
   PID_Y.SetTunings(p_Y,i_Y,d_Y);
   PID_Y.SetOutputLimits(-255,255);
-  PID_Y.SetSampleTime(1);
+  PID_Y.SetSampleTime(10);
   PID_Y.SetMode(AUTOMATIC);
 
+turn_off();
 }
 
 void loop(){
   // Input_X = mittelWertX(analogRead(HALLX));
   // Input_Y = mittelWertY(analogRead(HALLY));
-  Input_X = analogRead(HALLX);
-  Input_Y = analogRead(HALLY);
+  Input_X = analogRead(HALLX)-corr_sensor_y(Output_X);
+  Input_Y = analogRead(HALLY)-corr_sensor_y(Output_Y);
 
-    read_sensor();
+    // read_sensor();
   #ifdef CONTROLL //Regeln
     //Compunt correction Value
     //===PID====
@@ -136,22 +141,69 @@ void loop(){
   #endif
 
   #ifdef TESTX
-    turn_X(255); //Oben
-    delay(10000);
-    turn_X(-255); //Unten
-    delay(10000);
+  int valx = 0;
+  int delaytestx=750;
+  while (valx<255) {
+    Output_X=valx;
+    turn_X(Output_X);
+    read_sensor();
+    valx+=10;
+    delay(delaytestx);
+  }
+  Output_X=0;
+  turn_X(Output_X);
+  DEBUG_PRINTLN("=======");
+  delay(1000);
+  valx = 0;
+  while (valx<255) {
+    Output_X=-valx;
+    turn_X(Output_X);
+    read_sensor();
+    valx+=10;
+    delay(delaytestx);
+  }
+  Output_X=0;
+  turn_X(Output_X);
+    // turn_X(255); //Oben
+    // delay(10000);
+    // turn_X(-255); //Unten
+    // delay(10000);
   #endif
 
   #ifdef TESTY
-    turn_Y(255); //Rechts
-    delay(10000);
-    turn_Y(-255); //Links
-    delay(10000);
+  int valy = 0;
+  int delaytesty=750;
+  while (valy<255) {
+    Output_Y=valy;
+    turn_Y(Output_Y);
+    // Input_Y = analogRead(A0);
+    // DEBUG_PRINT("Input_Y: ");DEBUG_PRINT("\t");
+    // DEBUG_PRINTLN(Input_Y);DEBUG_PRINT("\t");
+    // DEBUG_PRINTLN(Input_Y-corr_sensor_y(valy));
+    read_sensor();
+    valy+=10;
+    delay(delaytesty);
+  }
+  Output_Y=0;
+  turn_Y(Output_Y);
+  DEBUG_PRINTLN("=======");
+  delay(1000);
+  valy = 0;
+  while (valy<255) {
+    Output_Y=-valy;
+    turn_Y(Output_Y);
+    read_sensor();
+    valy+=10;
+    delay(delaytesty);
+  }
+  Output_Y=0;
+  turn_Y(Output_Y);
+    delay(5000);
   #endif
 
   #ifdef TESTXY
     DEBUG_PRINTLN("=====TESTXY=====");
-    int delayTest=750;
+    int delayTest=2000;
     turn_X(255); //Oben
     delay(delayTest);
     turn_off();
@@ -168,42 +220,46 @@ void loop(){
     delay(delayTest);
     turn_off();
     read_sensor();
-    // delay(5000);
+    delay(5000);
   #endif
 }
 
 void turn_X(int a){
-  DEBUG_PRINT("turn_X: "); DEBUG_PRINT(a);
+  Output_X=a;
+  DEBUG_PRINT("turn_X: ");DEBUG_PRINT("\t"); DEBUG_PRINT(a);DEBUG_PRINT("\t");
   if(a>=0)  {
-    DEBUG_PRINTLN(" Oben");
-    digitalWrite(IN1,1);
+    DEBUG_PRINT(" Oben");
     digitalWrite(IN2,0);
+    digitalWrite(IN1,1);
     analogWrite(ENA,a);
   }
   else  {
-    DEBUG_PRINTLN(" Unten");
+    DEBUG_PRINT(" Unten");
     a=-a;
     digitalWrite(IN1,0);
     digitalWrite(IN2,1);
     analogWrite(ENA,a);
   }
+  // DEBUG_PRINTLN("");
 }
 
 void turn_Y(int a){
-DEBUG_PRINT("turn_Y: "); DEBUG_PRINT(a);
+  Output_Y=a;
+DEBUG_PRINT("turn_Y: ");DEBUG_PRINT("\t"); DEBUG_PRINT(a);DEBUG_PRINT("\t");
   if(a>=0)  {
-    DEBUG_PRINTLN(" Rechts");
-    digitalWrite(IN3,1);
+    DEBUG_PRINT(" Rechts");
     digitalWrite(IN4,0);
+    digitalWrite(IN3,1);
     analogWrite(ENB,a);
   }
   else{
-    DEBUG_PRINTLN(" Links");
+    DEBUG_PRINT(" Links");
     a=-a;
     digitalWrite(IN3,0);
     digitalWrite(IN4,1);
     analogWrite(ENB,a);
   }
+  // DEBUG_PRINTLN("");
 }
 
 void turn_off(){
@@ -211,19 +267,27 @@ void turn_off(){
   digitalWrite(IN2,0);
   digitalWrite(IN3,0);
   digitalWrite(IN4,0);
-  analogWrite(ENA,0);
-  analogWrite(ENB,0);
+  Output_X=0;
+  Output_Y=0;
+  analogWrite(ENA,Output_X);
+  analogWrite(ENB,Output_Y);
   delay(100);
 }
 
 void read_sensor(){
   Input_X = analogRead(A1);
   Input_Y = analogRead(A0);
-  DEBUG_PRINT("Input_X: ");
-  DEBUG_PRINT(Input_X);
-  DEBUG_PRINT("      ");
-  DEBUG_PRINT("Input_Y: ");
-  DEBUG_PRINTLN(Input_Y);
+  DEBUG_PRINT("\t");DEBUG_PRINT("\t");DEBUG_PRINT("\t");DEBUG_PRINT("\t");
+  DEBUG_PRINT("Input_X: ");DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_X);DEBUG_PRINT("\t");
+  DEBUG_PRINT("corr: ");DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_X-corr_sensor_y(Output_X));
+  // DEBUG_PRINTLN("");//DEBUG_PRINT("\t");
+  DEBUG_PRINT("\t");
+  DEBUG_PRINT("Input_Y: ");DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_Y);DEBUG_PRINT("\t");
+  DEBUG_PRINT("corr: ");DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_Y-corr_sensor_y(Output_Y));DEBUG_PRINTLN("");
 }
 
 int mittelWertX(int neuerWert) {
@@ -252,13 +316,38 @@ float mittel, summe=0;
   return mittel;
 }
 
+int corr_sensor_y(double x){
+  if (x==0){
+    return 0;
+  }
+  else{
+    double corrval;
+    corrval=(0.000009*x*x-0.0001*x-0.08)*x; //corrval=(0.000009*x*x-0.0001*x-0.08)*x;
+    // DEBUG_PRINTLN(corrval);
+    // DEBUG_PRINTLN((int)corrval);
+    return (int)corrval;
+  }
+}
+
+int corr_sensor_x(double x){
+  if (x==0){
+    return 0;
+  }
+  else{
+    double corrval;
+    corrval=(0.000008*x*x-0.0001*x+0.006)*x;
+    // DEBUG_PRINTLN(corrval);
+    // DEBUG_PRINTLN((int)corrval);
+    return (int)corrval;
+  }
+}
 // double pid_ctrl_X(double error) { //PID without library
 //   static double X_esum;
 //   static double X_ealt;
 //   double y;
 //
-//   esum = esum + eerror;
-//   y = X_Kp * error + X_Ki * x_Ta * esum + X_Kd * (error – ealt)/X_Ta;
+//   esum = X_esum + error;
+//   y = p_X * error + i_X * x_Ta * esum + d_X * (error – X_ealt)/X_Ta;
 //   ealt = error;
 //
 //   return y;
