@@ -58,13 +58,12 @@
 #endif
 
 #ifdef BUILD_FOR_LEONARDO
-  const byte ENA = 13; //Enable X
-  const byte IN1 = 10; //Enable for Out 1 X_Plus
-  const byte IN2 = 11; //Enable for Out 2 X_Minus
-
-  const byte ENB = 6; //Enable Y
-  const byte IN3 = 3; //Enable for Out 3 Y_Plus
-  const byte IN4 = 5; //Enable for Out 4 Y_Minus
+  const byte ENA = 12;
+  const byte IN1 = 3; //Enable for Out 1 X_Plus
+  const byte IN2 = 5; //Enable for Out 2 X_Minus
+  const byte IN3 = 10; //Enable for Out 3 Y_Plus
+  const byte IN4 = 11; //Enable for Out 4 Y_Minus
+  const byte ENB = 12;
 
   const byte HALL1 = A1;
   const byte HALL2 = A2;
@@ -84,12 +83,12 @@ unsigned long time_loop_stop;
 
 double Setpoint_X, X_plus;
 static double Input_X, Output_X;
-double p_X = 0.8,i_X = 0.0,d_X = 0.008;
+double p_X = 0.8,i_X = 0.00,d_X = 0.009;
 // double p_X = 1.0,i_X = 0.0,d_X = 0.01;
 
 double Setpoint_Y, Y_plus;
 static double Input_Y, Output_Y;
-double p_Y = 0.8,i_Y = 0.0,d_Y = 0.008;
+double p_Y = 0.8,i_Y = 0.00,d_Y = 0.009;
 // double p_Y = 1.0,i_Y = 0.0,d_Y = 0.01;
 PID PID_X(&Input_X, &Output_X, &Setpoint_X, p_X,i_X,d_X, DIRECT);
 PID PID_Y(&Input_Y, &Output_Y, &Setpoint_Y, p_Y,i_Y,d_Y, DIRECT);
@@ -123,7 +122,7 @@ void setup(){
   PID_X.SetMode(AUTOMATIC);
   PID_X.SetControllerDirection(DIRECT);
 
-  Setpoint_Y = 0;//560;
+  Setpoint_Y = -10;//560;
   PID_Y.SetTunings(p_Y,i_Y,d_Y);
   PID_Y.SetOutputLimits(-255,255);
   PID_Y.SetSampleTime(5);//10
@@ -139,11 +138,11 @@ void loop(){
     TIMING_PRINT("Time passed [ms]:"); TIMING_PRINTLN((double)(time_loop_stop-time_loop_start));
     time_loop_start=millis();
   #endif
-  // Input_X = analogRead(HALLX);//-corr_sensor_x(Output_X);
-  // Input_Y = analogRead(HALLY);//-corr_sensor_y(Output_Y);
-  // Input_X = mittelWertX(Input_X);
-  // Input_Y = mittelWertY(Input_Y);
+
   read_sensor();
+  Input_X-=0.7*corr_sensor_x(Output_X);
+  Input_Y-=0.7*corr_sensor_x(Output_Y);
+
   #ifdef CONTROLL //Regeln
     PID_X.Compute();
     PID_Y.Compute();
@@ -317,8 +316,10 @@ void read_sensor(){
     // DEBUG_PRINT(Input_sens_4);DEBUG_PRINT("\t");
   DEBUG_PRINT("In_X: ");DEBUG_PRINT("\t");
   DEBUG_PRINT(Input_X);DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_X-=corr_sensor_x(Output_X));DEBUG_PRINT("\t");
   DEBUG_PRINT("In_Y: ");DEBUG_PRINT("\t");
   DEBUG_PRINT(Input_Y);DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_Y-=corr_sensor_x(Output_Y));DEBUG_PRINT("\t");
   DEBUG_PRINTLN("");
 }
 
@@ -375,14 +376,8 @@ int corr_sensor_x(double x){
   }
   else{
     double corrval;
-    #ifdef PROTO1
-      // 1.52619475978755e-05	-0.00179062463855232	0.314493807509023	17.2766057392217
-      corrval=0.3*(1.526/100000*x*x*x-0.0018*x*x+0.314*x+17.2766);
-    #endif
-    #ifdef PROTO2
-      // 4.06833420891875e-06	-9.96144176102952e-05	0.0335466492784287	-0.316197422365213
-      corrval=0.3*(4.0683/1000000*x*x*x-9.9614/100000*x*x+0.0335*x);
-    #endif
+      corrval=x*-0.29;
+      // corrval=0.3*(4.0683/1000000*x*x*x-9.9614/100000*x*x+0.0335*x);
     // DEBUG_PRINTLN(corrval);
     // DEBUG_PRINTLN((int)corrval);
     return (int)corrval;
