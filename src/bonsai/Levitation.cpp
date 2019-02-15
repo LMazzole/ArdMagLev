@@ -18,12 +18,15 @@
 // #define MYDEBUG
 // #define MYTIMING
 
-#define CONTROLL
 // #define TESTX
 // #define TESTY
 // #define TESTXY
 
+#define CONTROLL
+#define AUTOSHUTDOWN
 #define BREAKERMODE
+
+
 //Define Debug-Function
 #ifdef MYDEBUG
   #define DEBUG_PRINT(x)        Serial.print (x)
@@ -39,6 +42,8 @@
   #define TIMING_PRINT(x)        Serial.print (x)
   #define TIMING_PRINTDEC(x)     Serial.print (x, DEC)
   #define TIMING_PRINTLN(x)      Serial.println (x)
+  unsigned long time_loop_start;
+  unsigned long time_loop_stop;
 #else
   #define TIMING_PRINT(x)
   #define TIMING_PRINTDEC(x)
@@ -72,27 +77,26 @@
 #endif
 //
 
-const byte anzahlMittelWerte = 3;
-int werteHallX[anzahlMittelWerte], zaehlerMittelWerteX=0;
-int werteHallY[anzahlMittelWerte], zaehlerMittelWerteY=0;
-int mittelWertX(int neuerWert);
-int mittelWertY(int neuerWert);
+#ifdef AUTOSHUTDOWN
+  const int shutdown_treshhold = 200;
+  int shutdown_val=0;
+#endif
 
-unsigned long time_loop_start;
-unsigned long time_loop_stop;
-
+// #ifdef CONTROLL
 double Setpoint_X, X_plus;
 static double Input_X, Output_X;
-double p_X = 0.8,i_X = 0.00,d_X = 0.009;
+double p_X = 0.8,i_X = 0.00,d_X = 0.008;
 // double p_X = 1.0,i_X = 0.0,d_X = 0.01;
 
 double Setpoint_Y, Y_plus;
 static double Input_Y, Output_Y;
-double p_Y = 0.8,i_Y = 0.00,d_Y = 0.009;
+double p_Y = 0.8,i_Y = 0.00,d_Y = 0.008;
 // double p_Y = 1.0,i_Y = 0.0,d_Y = 0.01;
 PID PID_X(&Input_X, &Output_X, &Setpoint_X, p_X,i_X,d_X, DIRECT);
 PID PID_Y(&Input_Y, &Output_Y, &Setpoint_Y, p_Y,i_Y,d_Y, DIRECT);
+// #endif
 
+//Functionprototyp
 void turn_X(int a);
 void turn_Y(int a);
 void read_sensor();
@@ -101,7 +105,6 @@ int corr_sensor_y(double pwm_y);
 int corr_sensor_x(double pwm_x);
 double pid_ctrl_X(double error);
 double pid_ctrl_Y(double error);
-
 
 void setup(){
   #ifdef MYDEBUG
@@ -118,14 +121,14 @@ void setup(){
   Setpoint_X = 0;//560;
   PID_X.SetTunings(p_X,i_X,d_X);
   PID_X.SetOutputLimits(-255,255);
-  PID_X.SetSampleTime(5);//10
+  PID_X.SetSampleTime(5); // Sampletime in milliseconds
   PID_X.SetMode(AUTOMATIC);
   PID_X.SetControllerDirection(DIRECT);
 
-  Setpoint_Y = -10;//560;
+  Setpoint_Y = 10;//560;
   PID_Y.SetTunings(p_Y,i_Y,d_Y);
   PID_Y.SetOutputLimits(-255,255);
-  PID_Y.SetSampleTime(5);//10
+  PID_Y.SetSampleTime(5); // Sampletime in milliseconds
   PID_Y.SetMode(AUTOMATIC);
   PID_Y.SetControllerDirection(DIRECT);//DIRECT or REVERSE
 
@@ -141,11 +144,35 @@ void loop(){
 
   read_sensor();
   Input_X-=0.7*corr_sensor_x(Output_X);
-  Input_Y-=0.7*corr_sensor_x(Output_Y);
+  Input_Y-=0.7*corr_sensor_y(Output_Y);
+  // Input_X=mittelWertX(Input_X);
+  // Input_Y=mittelWertX(Input_Y);
 
   #ifdef CONTROLL //Regeln
     PID_X.Compute();
     PID_Y.Compute();
+    #ifdef AUTOSHUTDOWN
+      if(abs(Output_X)>254 || abs(Output_X)>254){
+          shutdown_val+=1;
+          DEBUG_PRINTLN("");
+          DEBUG_PRINT("shutdown_val");DEBUG_PRINTLN(shutdown_val);
+      }
+      else{
+        shutdown_val=0;
+      }
+      if(shutdown_val>shutdown_treshhold){
+        DEBUG_PRINTLN("");
+        DEBUG_PRINTLN("TURN OFF");
+        turn_off();
+        delay(3000);//cooldown
+        while(abs(Input_X) >10 && abs(Input_Y) >10 ){
+          DEBUG_PRINTLN("WAIT FOR INITPOS");
+          read_sensor();
+          delay(100);
+        }
+        shutdown_val=0;
+      }
+    #endif
     turn_X(Output_X);
     turn_Y(Output_Y);
   #endif
@@ -224,11 +251,13 @@ void loop(){
     turn_off();
     read_sensor();
     delay(5000);
-    #endif
-    #ifdef MYTIMING
+  #endif
+
+  #ifdef MYTIMING
     time_loop_stop=millis();
   #endif
 }
+
 //=============================================================================
 void turn_X(int a){
   Output_X=a;
@@ -293,8 +322,10 @@ void turn_off(){
   digitalWrite(IN4,0);
   Output_X=0;
   Output_Y=0;
-  analogWrite(ENA,0);
-  analogWrite(ENB,0);
+  #ifdef BREAKERMODE
+    analogWrite(ENA,0);
+    analogWrite(ENB,0);
+  #endif
   delay(100);
 }
 
@@ -316,37 +347,11 @@ void read_sensor(){
     // DEBUG_PRINT(Input_sens_4);DEBUG_PRINT("\t");
   DEBUG_PRINT("In_X: ");DEBUG_PRINT("\t");
   DEBUG_PRINT(Input_X);DEBUG_PRINT("\t");
-  DEBUG_PRINT(Input_X-=corr_sensor_x(Output_X));DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_X-corr_sensor_x(Output_X));DEBUG_PRINT("\t");
   DEBUG_PRINT("In_Y: ");DEBUG_PRINT("\t");
   DEBUG_PRINT(Input_Y);DEBUG_PRINT("\t");
-  DEBUG_PRINT(Input_Y-=corr_sensor_x(Output_Y));DEBUG_PRINT("\t");
+  DEBUG_PRINT(Input_Y-corr_sensor_y(Output_Y));DEBUG_PRINT("\t");
   DEBUG_PRINTLN("");
-}
-
-int mittelWertX(int neuerWert) {
-  // neuen int Wert eingeben und den Mittelwert als fSloat zurück geben
-  //
-  // Matthias Busse 9.2.2016 Version 1.0
-  float mittel, summe=0;
-  werteHallX[zaehlerMittelWerteX] = neuerWert;
-  for(int k=0; k < anzahlMittelWerte; k++) summe += werteHallX[k];
-  mittel=(float) summe / anzahlMittelWerte;
-  zaehlerMittelWerteX++;
-  if(zaehlerMittelWerteX >= anzahlMittelWerte) zaehlerMittelWerteX=0;
-  return mittel;
-}
-
-int mittelWertY(int neuerWert) {
-  // neuen int Wert eingeben und den Mittelwert als float zurück geben
-  //
-  // Matthias Busse 9.2.2016 Version 1.0
-  float mittel, summe=0;
-  werteHallY[zaehlerMittelWerteY] = neuerWert;
-  for(int k=0; k < anzahlMittelWerte; k++) summe += werteHallY[k];
-  mittel=(float) summe / anzahlMittelWerte;
-  zaehlerMittelWerteY++;
-  if(zaehlerMittelWerteY >= anzahlMittelWerte) zaehlerMittelWerteY=0;
-  return mittel;
 }
 
 int corr_sensor_y(double x){
@@ -356,14 +361,8 @@ int corr_sensor_y(double x){
   }
   else{
     double corrval;
-    #ifdef PROTO1
-      // 2.04171635083766e-05	-0.00157012196594661	0.0549065517747006	15.6842388523726
-      corrval=2.04/100000*x*x*x-0.0016*x*x+0.055*x+15.684;
-    #endif
-    #ifdef PROTO2
-      // -6.91597888416238e-06	-4.50387411858792e-05	0.0126020514747854	-0.386905705678503
-      corrval=-6.9159/1000000*x*x*x-4.5038/100000*x*x+0.01260*x;
-    #endif
+    corrval=x*-0.29;
+      // corrval=0.3*(4.0683/1000000*x*x*x-9.9614/100000*x*x+0.0335*x);
     // DEBUG_PRINTLN(corrval);
     // DEBUG_PRINTLN((int)corrval);
     return (int)corrval;
@@ -376,13 +375,14 @@ int corr_sensor_x(double x){
   }
   else{
     double corrval;
-      corrval=x*-0.29;
+    corrval=x*-0.29;
       // corrval=0.3*(4.0683/1000000*x*x*x-9.9614/100000*x*x+0.0335*x);
     // DEBUG_PRINTLN(corrval);
     // DEBUG_PRINTLN((int)corrval);
     return (int)corrval;
   }
 }
+
 // double pid_ctrl_X(double error) { //PID without library
 //   static double X_esum;
 //   static double X_ealt;
