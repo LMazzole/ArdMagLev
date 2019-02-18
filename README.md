@@ -1,13 +1,12 @@
 # ArdMagLev
 This Project is based on the [AirBonsai](https://www.instructables.com/id/Arduino-Air-Bonsai-Levitation/)-Project from FunLab.  
 
-[TOC]
-
 - [General Setup](#general-setup)
-- 
-  - [IDE](#ide)
-  - [Board](#board)
-  - [Initial Problems](#initial-problems)
+- [Initial Problems](#initial-problems)
+- [Improvments](#improvments)
+- [Result](#result)
+- [Remaining Problems](#remaining-problems)
+- [TODO's](#todos)
 
 ## General Setup
 ### IDE
@@ -21,24 +20,24 @@ Arduino Leonardo
 ### Coils
 One of the biggest Problems is, that the generated Field of the Coils will disturb your Hallsensor.  
 Without the correct Sensorvalue you won't be able to controll the position.
-
+[TODO: Add Calculation Tau]
 ### Position of the Hallsensor
 The proposed setup with the Breadboard has the disadvantage, that you're not able to orient the Hallsensor correctly. Horizontal und vertical displacements have a negative influence on the precision of the Sensors and increase the disturbance from the Coils.  
 
 As you can see in the Image below the Sensor will detect the Field from the Coils much more if they are not completly parallel.
 
-![Field](.\images\Field.PNG)
+![Field](./images/Field.PNG)
 
 ## Improvements
 
 ### System-Overview
 
-![SystemOverview](.\images\SystemOverview.PNG)
+![SystemOverview](./images/SystemOverview.PNG)
 
-![SystemX](.\images\SystemX.PNG)
+![SystemX](./images/SystemX.PNG)
 
 ### Hardware
-![Hardware](.\images\Hardware.jpg)
+![Hardware](./images/Hardware.jpg)
 
 ### 3D-Print
 To solve the Position-Problem and make a more reproducible Design a 3D-Print was created. 
@@ -48,7 +47,7 @@ To solve the Position-Problem and make a more reproducible Design a 3D-Print was
 ### Hall-Sensors
 [SS495A-S Datasheet](https://sensing.honeywell.com/honeywell-sensing-sensors-linear-hall-effect-ics-ss490-series-datasheet-005843-2-en.pdf)  
 To minimize the Coil-influence, two more Hallsensores were added.
-![Base](C:\Users\Luca\Documents\Git\Privat\Arduino\ArdMagLev\images\Base.JPG)
+![Base](./images/Base.JPG)
 
 ### Software
 #### Preprocessor Directives
@@ -94,7 +93,7 @@ The function *corr_sensor_x* and *corr_sensor_y* will read the actual PWM-Output
 
 
 ## Result
-<video src=".\images\ardmaglev.mp4"></video>
+[Video](./images/ardmaglev.mp4)
 
 ### Technical Details
 - Max Load: [Todo: measure]
@@ -113,7 +112,7 @@ An Higher PWM frequency would solve this Problem.
 ### Magnet detection
 There is no Standby-Mode atm. A Function for the detection of the floating Magnet is necessary.
 
-## TODO's
+## TODOs
 Feel free to contribute
 - Improve Instructions
 - Update Controller for Higher PWM and to minimize Coil-Noise
