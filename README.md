@@ -24,7 +24,7 @@ Without the correct Sensorvalue you won't be able to controll the position.
 ### Position of the Hallsensor
 The proposed setup with the Breadboard has the disadvantage, that you're not able to orient the Hallsensor correctly. Horizontal und vertical displacements have a negative influence on the precision of the Sensors and increase the disturbance from the Coils.  
 
-As you can see in the Image below the Sensor will detect the Field from the Coils much more if they are not completly parallel.
+As you can see in the Image below the Sensor will detect the Field from the Coils much more if they are not completly parallel.  
 
 ![Field](./images/Field.PNG)
 
@@ -46,7 +46,8 @@ To solve the Position-Problem and make a more reproducible Design a 3D-Print was
 
 ### Hall-Sensors
 [SS495A-S Datasheet](https://sensing.honeywell.com/honeywell-sensing-sensors-linear-hall-effect-ics-ss490-series-datasheet-005843-2-en.pdf)  
-To minimize the Coil-influence, two more Hallsensores were added.
+To minimize the Coil-influence, two more Hallsensores were added.  
+
 ![Base](./images/Base.JPG)
 
 ### Software
