@@ -1,5 +1,5 @@
 # ArdMagLev
-This Project is based on the [AirBonsai](https://www.instructables.com/id/Arduino-Air-Bonsai-Levitation/)-Project from FunLab.  
+This Project is based on the [AirBonsai](https://www.instructables.com/id/Arduino-Air-Bonsai-Levitation/)-Project from Funelab.  
 
 - [General Setup](#general-setup)
 - [Initial Problems](#initial-problems)
@@ -94,7 +94,7 @@ The function *corr_sensor_x* and *corr_sensor_y* will read the actual PWM-Output
 
 
 ## Result
-[Video](./images/ardmaglev.mp4)
+![Base](./images/ardmaglev.gif)
 
 ### Technical Details
 - Max Load: [Todo: measure]
