@@ -12,18 +12,18 @@
 */
 
 
-#include <PID_v1.h>
+// #include <PID_v1.h>
 #include "Arduino.h"
 
 // #define MYDEBUG
+// #define MYCONTROLLDEBUG
 // #define MYTIMING
 
 // #define TESTX
 // #define TESTY
-// #define TESTXY
 
 #define CONTROLL
-#define AUTOSHUTDOWN
+// #define AUTOSHUTDOWN
 #define BREAKERMODE
 
 
@@ -37,6 +37,17 @@
   #define DEBUG_PRINTDEC(x)
   #define DEBUG_PRINTLN(x)
 #endif
+
+#ifdef MYCONTROLLDEBUG
+  #define CONTROLLDEBUG_PRINT(x)        Serial.print (x)
+  #define CONTROLLDEBUG_PRINTDEC(x)     Serial.print (x, DEC)
+  #define CONTROLLDEBUG_PRINTLN(x)      Serial.println (x)
+#else
+  #define CONTROLLDEBUG_PRINT(x)
+  #define CONTROLLDEBUG_PRINTDEC(x)
+  #define CONTROLLDEBUG_PRINTLN(x)
+#endif
+
 
 #ifdef MYTIMING
   #define TIMING_PRINT(x)        Serial.print (x)
@@ -82,29 +93,42 @@
   int shutdown_val=0;
 #endif
 
-// #ifdef CONTROLL
-double Setpoint_X, X_plus;
+// double ratio = 0.05;
+static double esum_X;
+static double ealt_X;
+static unsigned long timeCallPidFuncalt_X=micros();
+
+// double Setpoint_X, X_plus;
 static double Input_X, Output_X;
-double p_X = 0.8,i_X = 0.00,d_X = 0.008;
+double p_X = 1.0,i_X = 0.00,d_X = 0.80;
+// double p_X = 0.8,i_X = 0.00,d_X = 0.16;
+// double p_X = 0.8,i_X = 0.00*ratio,d_X = 0.008/ratio;
 // double p_X = 1.0,i_X = 0.0,d_X = 0.01;
 
-double Setpoint_Y, Y_plus;
+static double esum_Y;
+static double ealt_Y;
+static unsigned long timeCallPidFuncalt_Y=micros();
+
+// double Setpoint_Y, Y_plus;
 static double Input_Y, Output_Y;
-double p_Y = 0.8,i_Y = 0.00,d_Y = 0.008;
+double p_Y = 1.0,i_Y = 0.00,d_Y = 0.80;
+// double p_Y = 0.8,i_Y = 0.00,d_Y = 0.16;
+// double p_Y = 0.8,i_Y = 0.00*ratio,d_Y = 0.008/ratio;
 // double p_Y = 1.0,i_Y = 0.0,d_Y = 0.01;
-PID PID_X(&Input_X, &Output_X, &Setpoint_X, p_X,i_X,d_X, DIRECT);
-PID PID_Y(&Input_Y, &Output_Y, &Setpoint_Y, p_Y,i_Y,d_Y, DIRECT);
-// #endif
 
 //Functionprototyp
+double pid_ctrl(  double *error,
+                  double *Kp, double *Ki, double *Kd,
+                  double *errorsum, double *erroralt,
+                  unsigned long *timeCallPidFuncalt, int outMin, int outMax);
+
 void turn_X(int a);
 void turn_Y(int a);
 void read_sensor();
 void turn_off();
 int corr_sensor_y(double pwm_y);
 int corr_sensor_x(double pwm_x);
-double pid_ctrl_X(double error);
-double pid_ctrl_Y(double error);
+
 
 void setup(){
   #ifdef MYDEBUG
@@ -118,20 +142,6 @@ void setup(){
   pinMode(ENA,OUTPUT);
   pinMode(ENB,OUTPUT);
 
-  Setpoint_X = 0;//560;
-  PID_X.SetTunings(p_X,i_X,d_X);
-  PID_X.SetOutputLimits(-255,255);
-  PID_X.SetSampleTime(5); // Sampletime in milliseconds
-  PID_X.SetMode(AUTOMATIC);
-  PID_X.SetControllerDirection(DIRECT);
-
-  Setpoint_Y = 10;//560;
-  PID_Y.SetTunings(p_Y,i_Y,d_Y);
-  PID_Y.SetOutputLimits(-255,255);
-  PID_Y.SetSampleTime(5); // Sampletime in milliseconds
-  PID_Y.SetMode(AUTOMATIC);
-  PID_Y.SetControllerDirection(DIRECT);//DIRECT or REVERSE
-
   turn_off();
 }
 
@@ -143,14 +153,13 @@ void loop(){
   #endif
 
   read_sensor();
-  Input_X-=0.7*corr_sensor_x(Output_X);
-  Input_Y-=0.7*corr_sensor_y(Output_Y);
-  // Input_X=mittelWertX(Input_X);
-  // Input_Y=mittelWertX(Input_Y);
+  Input_X-=0.8*corr_sensor_x(Output_X);
+  Input_Y-=0.8*corr_sensor_y(Output_Y);
 
   #ifdef CONTROLL //Regeln
-    PID_X.Compute();
-    PID_Y.Compute();
+    Output_X= pid_ctrl(&Input_X, &p_X, &i_X, &d_X, &esum_X, &ealt_X, &timeCallPidFuncalt_X, -255,255);
+    Output_Y= pid_ctrl(&Input_Y, &p_Y, &i_Y, &d_Y, &esum_Y, &ealt_Y, &timeCallPidFuncalt_Y, -255,255);
+
     #ifdef AUTOSHUTDOWN
       if(abs(Output_X)>254 || abs(Output_X)>254){
           shutdown_val+=1;
@@ -227,29 +236,6 @@ void loop(){
       valy+=10;
     }
     turn_Y(0);
-    delay(5000);
-  #endif
-
-  #ifdef TESTXY
-    DEBUG_PRINTLN("=====TESTXY=====");
-    int delayTest=2000;
-    turn_X(255); //Oben
-    delay(delayTest);
-    read_sensor();
-    turn_off();
-    turn_Y(255); //Rechts
-    delay(delayTest);
-    read_sensor();
-    turn_off();
-    turn_X(-255); //Unten
-    delay(delayTest);
-    read_sensor();
-    turn_off();
-    turn_Y(-255); //Links
-    delay(delayTest);
-    read_sensor();
-    turn_off();
-    read_sensor();
     delay(5000);
   #endif
 
@@ -346,10 +332,10 @@ void read_sensor(){
     // DEBUG_PRINT("In_4: ");DEBUG_PRINT("\t");
     // DEBUG_PRINT(Input_sens_4);DEBUG_PRINT("\t");
   DEBUG_PRINT("In_X: ");DEBUG_PRINT("\t");
-  DEBUG_PRINT(Input_X);DEBUG_PRINT("\t");
+  // DEBUG_PRINT(Input_X);DEBUG_PRINT("\t");
   DEBUG_PRINT(Input_X-corr_sensor_x(Output_X));DEBUG_PRINT("\t");
   DEBUG_PRINT("In_Y: ");DEBUG_PRINT("\t");
-  DEBUG_PRINT(Input_Y);DEBUG_PRINT("\t");
+  // DEBUG_PRINT(Input_Y);DEBUG_PRINT("\t");
   DEBUG_PRINT(Input_Y-corr_sensor_y(Output_Y));DEBUG_PRINT("\t");
   DEBUG_PRINTLN("");
 }
@@ -383,26 +369,45 @@ int corr_sensor_x(double x){
   }
 }
 
-// double pid_ctrl_X(double error) { //PID without library
-//   static double X_esum;
-//   static double X_ealt;
-//   double y;
-//
-//   esum = X_esum + error;
-//   y = p_X * error + i_X * x_Ta * esum + d_X * (error – X_ealt)/X_Ta;
-//   ealt = error;
-//
-//   return y;
-// }
+
 
 // double pid_ctrl_Y(double e) { //PID without library
 //   static double esum;
 //   static double ealt;
 //   double y;
-//
+
 //   esum = esum + e;
 //   y = Kp * e + Ki * Ta * esum + Kd * (e – ealt)/Ta;
 //   ealt = e;
-//
+
 //   return y;
 // }
+
+double inline pid_ctrl(double *error, double *Kp, double *Ki, double *Kd, double *errorsum, double *erroralt, unsigned long *timeCallPidFuncalt, int outMin, int outMax) { //PID without library
+  unsigned long timeCallPidFunc=micros();
+  double Ta;
+  double output;
+    // CONTROLLDEBUG_PRINT("micros(): ");CONTROLLDEBUG_PRINT(micros());DEBUG_PRINT("\t");
+    // CONTROLLDEBUG_PRINT("timeCallalt: ");CONTROLLDEBUG_PRINT(*timeCallPidFuncalt);CONTROLLDEBUG_PRINT("\t");
+    // CONTROLLDEBUG_PRINT("timeCall: ");CONTROLLDEBUG_PRINT(timeCallPidFunc);CONTROLLDEBUG_PRINT("\t");
+  Ta = (timeCallPidFunc-*timeCallPidFuncalt);
+    CONTROLLDEBUG_PRINT("E: ");CONTROLLDEBUG_PRINT(*error);CONTROLLDEBUG_PRINT("\t");
+    CONTROLLDEBUG_PRINT("Ealt:");CONTROLLDEBUG_PRINT(*erroralt);CONTROLLDEBUG_PRINT("\t");
+    CONTROLLDEBUG_PRINT("Ta:");CONTROLLDEBUG_PRINT(Ta);CONTROLLDEBUG_PRINT("\t");
+    // CONTROLLDEBUG_PRINT("Kp:");CONTROLLDEBUG_PRINT(*Kp);CONTROLLDEBUG_PRINT("\t");
+    // CONTROLLDEBUG_PRINT("Kd:");CONTROLLDEBUG_PRINT(*Kd);CONTROLLDEBUG_PRINT("\t");
+  *timeCallPidFuncalt=timeCallPidFunc;
+  *errorsum += *error;
+  output = -((*Kp)*(*error) + (*Ki)*Ta*1000000.0*(*errorsum) + (*Kd)*1000.0*((*error)-(*erroralt))/Ta);
+    CONTROLLDEBUG_PRINT("KPges:");CONTROLLDEBUG_PRINT((*Kp)* (*error));CONTROLLDEBUG_PRINT("\t");
+    CONTROLLDEBUG_PRINT("Kdges:");CONTROLLDEBUG_PRINT((*Kd)*1000.0*((*error)-(*erroralt))/Ta);CONTROLLDEBUG_PRINT("\t");
+    CONTROLLDEBUG_PRINT("out:");CONTROLLDEBUG_PRINTLN(output);
+  *erroralt = *error;
+  if(output > outMax){
+    output = outMax;
+  }
+  else if(output < outMin){
+    output = outMin;
+  } 
+  return output;
+}
